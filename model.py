@@ -17,6 +17,8 @@ from torch.nn import functional as F
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
+    # 官方 nn.LayerNorm 在早期版本里不能单独关闭 bias（β），而 GPT-2 原始实现是支持关闭 bias 的。
+    # 所以自己套了个壳
 
     def __init__(self, ndim, bias):
         super().__init__()
@@ -56,6 +58,8 @@ class CausalSelfAttention(nn.Module):
         q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
 
         #拆分成多头注意力
+        # view是(B,T,C) -> (B,T,n_head,head_dim)，改变形状
+        # transpose是转置
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -129,8 +133,10 @@ class GPT(nn.Module):
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
-            wte = nn.Embedding(config.vocab_size, config.n_embd),# word token embedding
-            wpe = nn.Embedding(config.block_size, config.n_embd),# word position embedding
+            # word token embedding
+            wte = nn.Embedding(config.vocab_size, config.n_embd),
+            # word position embedding
+            wpe = nn.Embedding(config.block_size, config.n_embd),
             drop = nn.Dropout(config.dropout),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = LayerNorm(config.n_embd, bias=config.bias),
